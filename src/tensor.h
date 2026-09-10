@@ -16,4 +16,12 @@ class tensor {
         void print() const;
         const std::vector<float>& getData() const;
         const std::vector<int>& getShape() const;
+        tensor relu() const;
+        
+        tensor add(const tensor& other) const;
+        // tensorA is protected from changing (because of the trailing const).
+        //tensorB is protected from changing (because of the const& parameter).
+        //A completely new tensor (tensorC) is generated and returned.
     };
+
+    tensor matMul2d(tensor a, tensor b);

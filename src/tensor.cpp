@@ -29,6 +29,43 @@ const std::vector<int>& tensor::getShape() const{
     return shape;
 }
 
+tensor tensor::relu() const{
+    std::vector<float> new_data;
+
+    for(float element : data)
+    {
+        if(element <0){
+            new_data.push_back(0);
+        }else{
+            new_data.push_back(element);
+        }
+    }
+    return tensor(new_data,shape);
+}
+
+tensor tensor::add(const tensor& other) const{
+    int a_num_rows = shape[0];
+    int b_num_rows = other.shape[0];
+    int a_num_columns =shape[1];
+    int b_num_columns = other.shape[1];
+
+    if (a_num_rows == b_num_rows && a_num_columns == b_num_columns)
+        {
+            std::vector<float> new_data;
+            for(int row=0; row<a_num_rows;++row)
+                {
+                    for(int col= 0; col<a_num_columns; ++col){
+                        float new_element = data[row * a_num_columns + col] + other.getData()[row * b_num_columns + col];
+                       new_data.push_back(new_element);
+                    }
+
+                }
+            
+        return tensor(new_data, {a_num_rows, a_num_columns});
+        }
+    throw std::invalid_argument("Tensor shapes do not match for addition");
+}
+
 
 tensor matMul2d(tensor a, tensor b){
 
