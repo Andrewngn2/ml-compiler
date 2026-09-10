@@ -2,6 +2,7 @@
 //what a tensor is and what it can do
  
 #include <vector>
+#pragma once
 //library that allows for dynamic resizable array
 
 
@@ -11,12 +12,13 @@ class tensor {
     std::vector<int> shape;
 
     public:
+        tensor();
         tensor(std::vector<float> data, std::vector<int> shape);
             //print tensor without modifying variables in tensor
         void print() const;
         const std::vector<float>& getData() const;
         const std::vector<int>& getShape() const;
-        tensor relu() const;
+        tensor ReLU() const;
         
         tensor add(const tensor& other) const;
         // tensorA is protected from changing (because of the trailing const).

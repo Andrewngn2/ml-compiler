@@ -6,7 +6,7 @@
 //tensor is scope and this is the constructor which uses a member intializer list
 tensor::tensor(std::vector<float> data, std::vector<int> shape) 
     : data(data), shape(shape){}
-    
+tensor::tensor(){}
 // prints the tensor   
 void tensor::print()const{
     std::cout <<"Shape: ";
@@ -29,7 +29,7 @@ const std::vector<int>& tensor::getShape() const{
     return shape;
 }
 
-tensor tensor::relu() const{
+tensor tensor::ReLU() const{
     std::vector<float> new_data;
 
     for(float element : data)
