@@ -3,6 +3,7 @@
 #include "tensor.h"
 #include <stdexcept>
 
+
 node::node(std::string operation, tensor value)
 : operation(operation), value(value){}
 
@@ -47,8 +48,7 @@ tensor node::execute(){
         tensor weight = inputs[1]->execute();
         tensor bias = inputs[2]->execute();
 
-        tensor result = matMul2d(input,weight);
-        return result.add(bias);
+        return fusedMatMulAdd2d(input, weight, bias);
     }
 
     throw std::invalid_argument("Unknown operation");

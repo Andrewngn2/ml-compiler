@@ -27,3 +27,4 @@ class tensor {
     };
 
     tensor matMul2d(tensor a, tensor b);
+    tensor fusedMatMulAdd2d(tensor a, tensor b, tensor bias);

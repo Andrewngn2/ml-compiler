@@ -103,3 +103,56 @@ tensor matMul2d(tensor a, tensor b){
 
     throw std::invalid_argument("Matrix dimensions do not match for matmul");
 }
+
+tensor fusedMatMulAdd2d(tensor a, tensor b, tensor bias) {
+
+    int a_num_rows = a.getShape()[0];
+    int a_num_columns = a.getShape()[1];
+
+    int b_num_rows = b.getShape()[0];
+    int b_num_columns = b.getShape()[1];
+
+    if (a_num_columns != b_num_rows) {
+        throw std::invalid_argument(
+            "Matrix dimensions do not match for fused matmul + add"
+        );
+    }
+
+    if (bias.getShape()[0] != a_num_rows ||
+        bias.getShape()[1] != b_num_columns) {
+        throw std::invalid_argument(
+            "Bias shape does not match matmul output"
+        );
+    }
+
+    std::vector<float> a_data = a.getData();
+    std::vector<float> b_data = b.getData();
+    std::vector<float> bias_data = bias.getData();
+
+    std::vector<float> data;
+
+    for (int row_a = 0; row_a < a_num_rows; ++row_a) {
+
+        for (int col_b = 0; col_b < b_num_columns; ++col_b) {
+
+            float sum = 0;
+
+            for (int i = 0; i < a_num_columns; ++i) {
+
+                float pair =
+                    a_data[row_a * a_num_columns + i] *
+                    b_data[i * b_num_columns + col_b];
+
+                sum += pair;
+            }
+
+            // Add the bias immediately instead of creating
+            // a temporary MatMul tensor.
+            sum += bias_data[row_a * b_num_columns + col_b];
+
+            data.push_back(sum);
+        }
+    }
+
+    return tensor(data, {a_num_rows, b_num_columns});
+}
