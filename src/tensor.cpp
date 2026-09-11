@@ -75,23 +75,24 @@ tensor matMul2d(tensor a, tensor b){
     int b_num_columns = b.getShape()[1];
     std::vector<float> a_data = a.getData();
     std::vector<float> b_data = b.getData();
-    std::vector<float> data;
+    std::vector<float> data(a_num_rows * b_num_columns, 0.0f);
     if (a_num_columns == b_num_rows){
         
+            //contiguous memory access
+        for (int row = 0; row < a_num_rows; ++row) {
 
-        for (int row_a =0;row_a< a.getShape()[0]; ++row_a){
+            for (int i = 0; i < a_num_columns; ++i) {
 
-            for (int col_b = 0; col_b<b_num_columns; ++col_b){
-                float sum = 0;
-                for(int i = 0; i < a_num_columns; ++i){
-                   float pair =  a_data[row_a *a_num_columns + i] * b_data[i * b_num_columns + col_b];
-                    sum += pair;
+                float a_value =
+                    a_data[row * a_num_columns + i];
+
+                for (int col = 0; col < b_num_columns; ++col) {
+
+                    data[row * b_num_columns + col] +=
+                        a_value *
+                        b_data[i * b_num_columns + col];
                 }
-                
-                   
-                data.push_back(sum);
             }
-            
         }
 
         
@@ -129,28 +130,29 @@ tensor fusedMatMulAdd2d(tensor a, tensor b, tensor bias) {
     std::vector<float> b_data = b.getData();
     std::vector<float> bias_data = bias.getData();
 
-    std::vector<float> data;
+    std::vector<float> data(a_num_rows * b_num_columns, 0.0f);
 
-    for (int row_a = 0; row_a < a_num_rows; ++row_a) {
+    for (int row = 0; row < a_num_rows; ++row) {
 
-        for (int col_b = 0; col_b < b_num_columns; ++col_b) {
+        for (int i = 0; i < a_num_columns; ++i) {
 
-            float sum = 0;
+            float a_value =
+                a_data[row * a_num_columns + i];
 
-            for (int i = 0; i < a_num_columns; ++i) {
+            for (int col = 0; col < b_num_columns; ++col) {
 
-                float pair =
-                    a_data[row_a * a_num_columns + i] *
-                    b_data[i * b_num_columns + col_b];
-
-                sum += pair;
+                data[row * b_num_columns + col] +=
+                    a_value *
+                    b_data[i * b_num_columns + col];
             }
+        }
+    }
 
-            // Add the bias immediately instead of creating
-            // a temporary MatMul tensor.
-            sum += bias_data[row_a * b_num_columns + col_b];
-
-            data.push_back(sum);
+    // add bias
+    for (int row = 0; row < a_num_rows; ++row) {
+        for (int col = 0; col < b_num_columns; ++col) {
+            data[row * b_num_columns + col] +=
+                bias_data[row * b_num_columns + col];
         }
     }
 
