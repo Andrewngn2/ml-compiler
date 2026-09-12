@@ -3,6 +3,7 @@
 #include "optimizer.h"
 #include <iostream>
 #include <chrono>
+#include <tuple>
 
 tensor createMatrix(int rows, int cols){
     std::vector<float> data(rows*cols, 1.0f);
@@ -10,7 +11,7 @@ tensor createMatrix(int rows, int cols){
 }
 
 int main() {
-    int size = 2048;
+    int size = 512;
 
     tensor input_tensor = createMatrix(size, size);
     tensor weight_tensor = createMatrix(size,size);
@@ -44,95 +45,29 @@ int main() {
     tensor original_result = relu_node.execute();
     auto end = std::chrono::high_resolution_clock::now();
     auto original_time = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count();
-    std::cout << "\nOriginal result:\n";
+    int runs = 5;
+
+    long long average_time,max_time,min_time;
+    std::tie(average_time,max_time,min_time) = benchmarkMatMul(input_tensor, weight_tensor, runs,1);
+    std::cout << "naive matmul:\n";
+    std::cout << "Average time: "
+            << average_time
+            << " microseconds\n";
+    std::cout<< "Max time:" << max_time << "microseconds\n";
+    std::cout<< "Min time:" <<min_time <<"microseconds\n";
+    
+     long long optim_average_time,optim_max_time, optim_min_time;
+    std::tie(optim_average_time,optim_max_time,optim_min_time) = benchmarkMatMul(input_tensor, weight_tensor, runs,0);
+    std::cout <<"optimized matmul-contiguous memory access\n";
+    std::cout << "Average time: "
+            << optim_average_time
+            << " microseconds\n";
+    std::cout<< "Max time:" << optim_max_time << "microseconds\n";
+    std::cout<< "Min time:" << optim_min_time <<"microseconds\n";
     
 
 
-    // -----------------------------
-    // OPTIMIZE
-    // -----------------------------
-
-    fuseMatMulAdd(&add_node);
-
-    const int iterations = 10;
-
-    // -----------------------------
-    // BENCHMARK ORIGINAL
-    // -----------------------------
-
-    // Rebuild the original graph
-    add_node.setOperation("Add");
-
-    std::vector<node*> original_inputs = {&matmul_node,&bias_node};
-
-    add_node.setInputs(original_inputs);
-
-    long long original_total = 0;
-
-    for (int i = 0; i < iterations; ++i) {
-
-        auto start = std::chrono::high_resolution_clock::now();
-
-        tensor result = relu_node.execute();
-
-        auto end = std::chrono::high_resolution_clock::now();
-
-        original_total += std::chrono::duration_cast<std::chrono::microseconds>( end - start).count();
-    }
-
-    double original_average = static_cast<double>(original_total) / iterations;
-
-
-    // -----------------------------
-    // BENCHMARK OPTIMIZED
-    // -----------------------------
-
-    fuseMatMulAdd(&add_node);
-
-    long long optimized_total = 0;
-
-    for (int i = 0; i < iterations; ++i) {
-
-        auto start = std::chrono::high_resolution_clock::now();
-
-        tensor result = relu_node.execute();
-
-        auto end = std::chrono::high_resolution_clock::now();
-
-        optimized_total +=
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                end - start
-            ).count();
-    }
-
-    double optimized_average =
-        static_cast<double>(optimized_total) / iterations;
-
-
-    // -----------------------------
-    // RESULTS
-    // -----------------------------
-
-    std::cout << "\n===== BENCHMARK =====\n";
-
-    std::cout << "Matrix size: "
-            << size << " x " << size << "\n";
-
-    std::cout << "Iterations: "
-            << iterations << "\n";
-
-    std::cout << "Original average: "
-            << original_average << " microseconds\n";
-
-    std::cout << "Optimized average: "
-            << optimized_average << " microseconds\n";
-
-    double speedup =
-        original_average / optimized_average;
-
-    std::cout << "Speedup: "
-            << speedup << "x\n";
-    
+   
 
     return 0;
 }

@@ -1,5 +1,6 @@
 #include "tensor.h"
 #include <iostream>
+#include <tuple>
 #include <stdexcept> //for throwing errors
 //this is the logic for the tensor
 
@@ -158,3 +159,105 @@ tensor fusedMatMulAdd2d(tensor a, tensor b, tensor bias) {
 
     return tensor(data, {a_num_rows, b_num_columns});
 }
+
+tensor naiveMatMul(tensor a, tensor b) {
+
+    int a_num_rows = a.getShape()[0];
+    int a_num_columns = a.getShape()[1];
+
+    int b_num_rows = b.getShape()[0];
+    int b_num_columns = b.getShape()[1];
+
+    if (a_num_columns != b_num_rows) {
+        throw std::invalid_argument(
+            "Matrix dimensions do not match for matmul"
+        );
+    }
+
+    std::vector<float> a_data = a.getData();
+    std::vector<float> b_data = b.getData();
+
+    std::vector<float> data;
+
+    for (int row = 0; row < a_num_rows; ++row) {
+
+        for (int col = 0; col < b_num_columns; ++col) {
+
+            float sum = 0;
+
+            for (int i = 0; i < a_num_columns; ++i) {
+
+                sum +=
+                    a_data[row * a_num_columns + i] *
+                    b_data[i * b_num_columns + col];
+            }
+
+            data.push_back(sum);
+        }
+    }
+
+    return tensor(data, {a_num_rows, b_num_columns});
+}
+
+
+
+#include <chrono>
+#include <tuple>
+#include <limits>
+
+// Ensure matMul2d accepts inputs by const reference: matMul2d(const tensor&, const tensor&)
+std::tuple<long long, long long, long long> benchmarkMatMul(const tensor& input, const tensor& weight, int runs, int naive) {
+    if (runs <= 0) return {0, 0, 0};
+
+    long long total_time = 0;
+    long long max_time = 0;
+    long long min_time = std::numeric_limits<long long>::max(); // Start at infinity
+    if(naive == 0){
+    for (int i = 0; i < runs; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
+
+        tensor result = matMul2d(input, weight);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        long long current_time = std::chrono::duration_cast<
+            std::chrono::microseconds
+        >(end - start).count();
+
+        total_time += current_time;
+
+        if (current_time > max_time) {
+            max_time = current_time;
+        }
+        if (current_time < min_time) {
+            min_time = current_time;
+        }
+    }
+    }else{
+        auto start = std::chrono::high_resolution_clock::now();
+
+        tensor result = naiveMatMul(input, weight);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        long long current_time = std::chrono::duration_cast<
+            std::chrono::microseconds
+        >(end - start).count();
+
+        total_time += current_time;
+
+        if (current_time > max_time) {
+            max_time = current_time;
+        }
+        if (current_time < min_time) {
+            min_time = current_time;
+        }
+
+
+    }
+
+    long long average_time = total_time / runs;
+
+    return {average_time, max_time, min_time};
+}
+
