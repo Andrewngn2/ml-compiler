@@ -234,6 +234,9 @@ std::tuple<long long, long long, long long> benchmarkMatMul(const tensor& input,
         }
     }
     }else{
+        for(int i =0; i<runs;++i){
+
+        
         auto start = std::chrono::high_resolution_clock::now();
 
         tensor result = naiveMatMul(input, weight);
@@ -252,6 +255,7 @@ std::tuple<long long, long long, long long> benchmarkMatMul(const tensor& input,
         if (current_time < min_time) {
             min_time = current_time;
         }
+    }
 
 
     }

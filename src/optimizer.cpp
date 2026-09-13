@@ -54,3 +54,15 @@ void fuseMatMulAdd(node* addNode){
     addNode->setInputs(fusedInputs);
 
 }
+void optimizeNode(node* currentNode) {
+
+    std::vector<node*> inputs = currentNode->getInputs();
+
+    for (node* input : inputs) {
+        optimizeNode(input);
+    }
+
+    if (canFuseMatMulAdd(currentNode)) {
+        fuseMatMulAdd(currentNode);
+    }
+}

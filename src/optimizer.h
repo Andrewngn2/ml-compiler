@@ -5,3 +5,4 @@
 bool canFuseMatMulAdd(node* addNode);
 
 void fuseMatMulAdd(node* addNode);
+void optimizeNode(node* currentNode);
