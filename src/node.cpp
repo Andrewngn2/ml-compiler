@@ -50,6 +50,9 @@ tensor node::execute(){
 
         return fusedMatMulAdd2d(input, weight, bias);
     }
+    if(operation == "Constant"){
+        return value;
+    }
 
     throw std::invalid_argument("Unknown operation");
 }
@@ -76,4 +79,7 @@ void node::setOperation(std::string newOperation){
 }
 void node::setInputs(std::vector<node*> newInputs){
     inputs = newInputs;
+}
+tensor node::getValue() const {
+    return value;
 }

@@ -12,88 +12,130 @@ tensor createMatrix(int rows, int cols){
 }
 
 int main() {
-    int size = 2;
 
-    tensor input_tensor = createMatrix(size, size);
-    tensor weight_tensor = createMatrix(size,size);
-    tensor bias_tensor = createMatrix(size,size);
+    // ============================================================
+    // TEST 1: MatMul + Add Fusion
+    // ============================================================
 
+    std::cout << "===== TEST 1: MatMul + Add Fusion =====" << std::endl;
+
+    tensor input_tensor(
+        {1, 2,
+         3, 4},
+        {2, 2}
+    );
+
+    tensor weight_tensor(
+        {6, 7,
+         6, 7},
+        {2, 2}
+    );
+
+    tensor bias_tensor(
+        {1, 2,
+         1, 2},
+        {2, 2}
+    );
+
+    // Create input nodes
     node input_node("Input", input_tensor);
     node weight_node("Input", weight_tensor);
     node bias_node("Input", bias_tensor);
 
+    // MatMul node
     node matmul_node("MatMul");
-    node add_node("Add");
-    node relu_node("ReLU");
-
     matmul_node.addInput(&input_node);
     matmul_node.addInput(&weight_node);
 
+    // Add node
+    node add_node("Add");
     add_node.addInput(&matmul_node);
     add_node.addInput(&bias_node);
 
+    // ReLU node
+    node relu_node("ReLU");
     relu_node.addInput(&add_node);
 
-
-    // -----------------------------
-    // ORIGINAL GRAPH
-    // -----------------------------
-
-    std::cout << "===== ORIGINAL GRAPH =====\n";
-    relu_node.printGraph();
-
-    auto start = std::chrono::high_resolution_clock::now();
-    tensor original_result = relu_node.execute();
-    auto end = std::chrono::high_resolution_clock::now();
-    auto original_time = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count();
-    int runs = 5;
-    std::cout << "matrix size: " << size << "x" <<size;
-    long long average_time,max_time,min_time;
-    std::tie(average_time,max_time,min_time) = benchmarkMatMul(input_tensor, weight_tensor, runs,1);
-    std::cout << "naive matmul:\n";
-    std::cout << "Average time: "
-            << average_time
-            << " microseconds\n";
-    std::cout<< "Max time:" << max_time << "microseconds\n";
-    std::cout<< "Min time:" <<min_time <<"microseconds\n";
-    
-     long long optim_average_time,optim_max_time, optim_min_time;
-    std::tie(optim_average_time,optim_max_time,optim_min_time) = benchmarkMatMul(input_tensor, weight_tensor, runs,0);
-    std::cout <<"optimized matmul-contiguous memory access\n";
-    std::cout << "Average time: "
-            << optim_average_time
-            << " microseconds\n";
-    std::cout<< "Max time:" << optim_max_time << "microseconds\n";
-    std::cout<< "Min time:" << optim_min_time <<"microseconds\n";
-
-    double speedup =
-    static_cast<double>(average_time) / optim_average_time;
-
-std::cout << "Speedup: "
-          << speedup
-          << "x\n";
-
-
+    // Create graph
     Graph graph;
+
     graph.addNode(&input_node);
-graph.addNode(&weight_node);
-graph.addNode(&bias_node);
-graph.addNode(&matmul_node);
-graph.addNode(&add_node);
-graph.addNode(&relu_node);
-std::cout <<"before fuse";
-graph.printNodes();
+    graph.addNode(&weight_node);
+    graph.addNode(&bias_node);
+    graph.addNode(&matmul_node);
+    graph.addNode(&add_node);
+    graph.addNode(&relu_node);
+
     graph.setOutputNode(&relu_node);
-    std::cout <<"after fuse";
-    graph.optimize();
+
+    std::cout << "\nGraph before optimization:\n";
     graph.printNodes();
-    
-    tensor graph_result = graph.execute();
-    
-    graph_result.print();
+
+    std::cout << "\nResult before optimization:\n";
+    graph.execute().print();
+
+    // Optimize
+    graph.optimize();
+
+    std::cout << "\nGraph after optimization:\n";
+    graph.printNodes();
+
+    std::cout << "\nResult after optimization:\n";
+    graph.execute().print();
 
 
-   
+    // ============================================================
+    // TEST 2: Constant Folding
+    // ============================================================
+
+    std::cout << "\n\n===== TEST 2: Constant Folding =====" << std::endl;
+
+    tensor constant_a(
+        {1, 2,
+         3, 4},
+        {2, 2}
+    );
+
+    tensor constant_b(
+        {5, 6,
+         7, 8},
+        {2, 2}
+    );
+
+    // Constant nodes
+    node constant_node_a("Constant", constant_a);
+    node constant_node_b("Constant", constant_b);
+
+    // Add node
+    node constant_add("Add");
+    constant_add.addInput(&constant_node_a);
+    constant_add.addInput(&constant_node_b);
+
+    // Graph
+    Graph constant_graph;
+
+    constant_graph.addNode(&constant_node_a);
+    constant_graph.addNode(&constant_node_b);
+    constant_graph.addNode(&constant_add);
+
+    constant_graph.setOutputNode(&constant_add);
+
+    std::cout << "\nGraph before optimization:\n";
+    constant_graph.printNodes();
+
+    std::cout << "\nResult before optimization:\n";
+    constant_graph.execute().print();
+
+    // Optimize
+    constant_graph.optimize();
+
+    std::cout << "\nGraph after optimization:\n";
+    constant_graph.printNodes();
+
+    std::cout << "\nResult after optimization:\n";
+    constant_graph.execute().print();
+
+
 
     return 0;
 }

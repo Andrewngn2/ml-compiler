@@ -54,15 +54,62 @@ void fuseMatMulAdd(node* addNode){
     addNode->setInputs(fusedInputs);
 
 }
-void optimizeNode(node* currentNode) {
+void optimizeNode(node* currentNode, OptimizationPass* pass) {
 
     std::vector<node*> inputs = currentNode->getInputs();
 
     for (node* input : inputs) {
-        optimizeNode(input);
+        optimizeNode(input, pass);
     }
 
-    if (canFuseMatMulAdd(currentNode)) {
-        fuseMatMulAdd(currentNode);
+    pass->run(currentNode);
+}
+bool isConstant(node* currentNode) {
+    return currentNode->getOperation() == "Constant";
+}
+
+bool canFoldAdd(node* addNode) {
+
+    if (addNode->getOperation() != "Add") {
+        return false;
+    }
+
+    std::vector<node*> inputs = addNode->getInputs();
+
+    if (inputs.size() != 2) {
+        return false;
+    }
+
+    return isConstant(inputs[0]) && isConstant(inputs[1]);
+}
+void node::setValue(tensor newValue) {
+    value = newValue;
+}
+
+void foldAdd(node* addNode) {
+
+    if (!canFoldAdd(addNode)) {
+        return;
+    }
+
+    std::vector<node*> inputs = addNode->getInputs();
+
+    tensor a = inputs[0]->getValue();
+    tensor b = inputs[1]->getValue();
+
+    tensor result = a.add(b);
+
+    addNode->setOperation("Constant");
+    addNode->setInputs({});
+    addNode->setValue(result);
+}
+
+void Optimizer::addPass(OptimizationPass* pass) {
+    passes.push_back(pass);
+}
+void Optimizer::optimize(node* outputNode) {
+
+    for (OptimizationPass* pass : passes) {
+        optimizeNode(outputNode,pass);
     }
 }

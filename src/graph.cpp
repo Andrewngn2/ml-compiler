@@ -2,6 +2,11 @@
 #include "graph.h"
 #include <stdexcept>
 #include "optimizer.h"
+#include "graph.h"
+#include "constantFoldingPass.h"
+#include "matMulAddFusionPass.h"
+#include <iostream>
+#include <stdexcept>
 void Graph::addNode(node* newNode) {
     nodes.push_back(newNode);
 }
@@ -22,10 +27,19 @@ void Graph::setOutputNode(node* output) {
     outputNode = output;
 }
 void Graph::optimize() {
+
     if (outputNode == nullptr) {
         throw std::runtime_error("Graph has no output node");
     }
 
-    optimizeNode(outputNode);
+    Optimizer optimizer;
+
+    ConstantFoldingPass constantFolding;
+    MatMulAddFusionPass matmulFusion;
+
+    optimizer.addPass(&constantFolding);
+    optimizer.addPass(&matmulFusion);
+
+    optimizer.optimize(outputNode);
 }
 

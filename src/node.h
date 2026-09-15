@@ -18,4 +18,6 @@ class node {
         tensor execute();
         void setOperation(std:: string newOperation);
         void setInputs(std::vector<node*> newInputs);
+        tensor getValue() const;
+        void setValue(tensor newValue);
     };
