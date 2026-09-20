@@ -1,6 +1,6 @@
 
 #pragma once
-
+#include "IR.h"
 #include <vector>
 #include "tensor.h"
 #include "node.h"
@@ -17,4 +17,5 @@ public:
     tensor execute();
     void setOutputNode(node* output);
     void optimize();
+    IR lowerToIR() const;
 };

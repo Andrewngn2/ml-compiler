@@ -5,6 +5,7 @@
 #include <chrono>
 #include <tuple>
 #include "graph.h"
+#include "CPUBackend.h"
 
 tensor createMatrix(int rows, int cols){
     std::vector<float> data(rows*cols, 1.0f);
@@ -76,6 +77,19 @@ int main() {
 
     // Optimize
     graph.optimize();
+
+    
+    IR ir = graph.lowerToIR();
+
+    std::cout << "\nIR:\n";
+    ir.print();
+
+    CPUBackend cpu;
+
+    tensor result = cpu.execute(ir);
+
+    std::cout << "\nCPU Backend result:\n";
+    result.print();
 
     std::cout << "\nGraph after optimization:\n";
     graph.printNodes();
