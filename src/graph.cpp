@@ -65,9 +65,9 @@ IR Graph::lowerToIR() const {
         if (currentNode == nullptr) {
             throw std::runtime_error("Graph contains a null input");
         }
-            //iterator which acts like a node pointer
+                //if we already emitted this node return its eexisting id
         auto existing = valueIDs.find(currentNode);
-            //existing returns .end() when key is absent
+            //find returns .end() when key is absent and existing stores that reutrned iterator
         if (existing != valueIDs.end()) {
             return existing->second;//The value-IR ID
         }
@@ -87,7 +87,7 @@ IR Graph::lowerToIR() const {
             instruction.value = currentNode->getValue();
         }
         else {
-            // Emit dependencies before emitting this operation.
+            // Emit dependencies before emitting this operation for non inputs.
             for (node* input : currentNode->getInputs()) {
                 instruction.inputs.push_back(lowerNode(input));
             }
@@ -102,9 +102,9 @@ IR Graph::lowerToIR() const {
 
         return id;
     };
-
+    //starts traversal
     int outputID = lowerNode(outputNode);
     ir.setOutputID(outputID);
-
+    //stores the id for the output so we can acess later
     return ir;
 }

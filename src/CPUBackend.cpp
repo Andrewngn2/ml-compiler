@@ -3,17 +3,54 @@
 #include <stdexcept>
 #include "IR.h"
 #include "tensor.h"
-tensor CPUBackend::execute(const IR& ir) {
+tensor CPUBackend::execute(const IR& ir, const std::unordered_map<int, tensor>& inputBindings) {
 
+    
     const std::vector<IRInstruction>& instructions = ir.getInstructions();
 
 
     std::vector<tensor> values(instructions.size());
 
+    for (const auto& binding : inputBindings) {
+    bool foundInput = false;
+        //validation checks if id refers to input instruction and if it has right shape
+    for (const auto& instruction : instructions) {
+        if (instruction.output == binding.first &&
+            instruction.operation == "Input") {
+            foundInput = true;
+
+            if (binding.second.getShape() !=
+                instruction.value.getShape()) {
+                throw std::runtime_error(
+                    "Runtime input shape does not match IR input"
+                );
+            }
+
+            break;
+        }
+    }
+
+    if (!foundInput) {
+        throw std::runtime_error(
+            "Runtime binding does not refer to an Input instruction"
+        );
+    }
+}
+
     for(const IRInstruction& instruction : instructions){
 
-        if (instruction.operation == "Input" ||instruction.operation == "Constant") {
-        values[instruction.output] = instruction.value;
+        if (instruction.operation == "Input") {
+            auto binding = inputBindings.find(instruction.output);
+
+            if (binding != inputBindings.end()) {
+                values[instruction.output] = binding->second;
+            }
+            else {
+                values[instruction.output] = instruction.value;
+            }
+        }
+        else if (instruction.operation == "Constant") {
+            values[instruction.output] = instruction.value;
         }
         else if(instruction.operation =="FusedMatMulAdd")
         {
