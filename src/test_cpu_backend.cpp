@@ -304,6 +304,46 @@ void testRuntimeInputs() {
     std::cout << "PASS: runtime input validation\n";
 }
 
+
+void testBackendInterface() {
+    node input("Input", tensor({-2, 3, -1, 4}, {2, 2}));
+
+    node relu("ReLU");
+    relu.addInput(&input);
+
+    Graph graph;
+    graph.addNode(&input);
+    graph.addNode(&relu);
+    graph.setOutputNode(&relu);
+
+    IR ir = graph.lowerToIR();
+
+    CPUBackend cpu;
+
+    // Refer to the CPU object through the common interface.
+    Backend& backend = cpu;
+
+    expectTensor(
+        "backend interface with stored input",
+        backend.execute(ir),
+        {0, 3, 0, 4},
+        {2, 2}
+    );
+
+    std::unordered_map<int, tensor> bindings;
+    bindings.emplace(
+        0,
+        tensor({5, -6, 7, -8}, {2, 2})
+    );
+
+    expectTensor(
+        "backend interface with runtime input",
+        backend.execute(ir, bindings),
+        {5, 0, 7, 0},
+        {2, 2}
+    );
+}
+
 int main() {
     try {
         testNetwork(false);
@@ -311,6 +351,8 @@ int main() {
         testConstantFolding();
         testReLU();
         testGraphLowering();
+        testRuntimeInputs();
+        testBackendInterface();
         std::cout << "\nAll CPU backend tests passed!\n";
         return 0;
     }
