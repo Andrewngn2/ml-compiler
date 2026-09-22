@@ -29,4 +29,4 @@ class tensor {
     tensor matMul2d(tensor a, tensor b);
     tensor fusedMatMulAdd2d(tensor a, tensor b, tensor bias);
     std::tuple<long long,long long, long long>benchmarkMatMul ( const tensor& input, const tensor& weight, int runs, int naive);
-    
+
