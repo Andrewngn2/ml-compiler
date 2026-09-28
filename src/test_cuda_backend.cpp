@@ -262,12 +262,90 @@ void testUnsupportedOperation() {
     );
 }
 
+
+void testFusedNetwork() {
+    node input(
+        "Input",
+        tensor({1, 2, 3, 4}, {2, 2})
+    );
+
+    node weight(
+        "Constant",
+        tensor({6, 7, 6, 7}, {2, 2})
+    );
+
+    node bias(
+        "Constant",
+        tensor({1, 2, 1, 2}, {2, 2})
+    );
+
+    node matmul("MatMul");
+    matmul.addInput(&input);
+    matmul.addInput(&weight);
+
+    node add("Add");
+    add.addInput(&matmul);
+    add.addInput(&bias);
+
+    node relu("ReLU");
+    relu.addInput(&add);
+
+    Graph graph;
+    graph.addNode(&input);
+    graph.addNode(&weight);
+    graph.addNode(&bias);
+    graph.addNode(&matmul);
+    graph.addNode(&add);
+    graph.addNode(&relu);
+    graph.setOutputNode(&relu);
+
+    graph.optimize();
+
+    if (add.getOperation() != "FusedMatMulAdd") {
+        throw std::runtime_error("Network was not fused");
+    }
+
+    IR ir = graph.lowerToIR();
+
+    CPUBackend cpu;
+    CUDABackend gpu;
+
+    expectTensor(
+        "CPU fused network",
+        cpu.execute(ir),
+        {19, 23, 43, 51},
+        {2, 2}
+    );
+
+    expectTensor(
+        "CUDA fused network",
+        gpu.execute(ir),
+        {19, 23, 43, 51},
+        {2, 2}
+    );
+
+    // This graph assigns its sole Input value ID 0.
+    std::unordered_map<int, tensor> bindings;
+    bindings.emplace(
+        0,
+        tensor({-1, -2, 3, 4}, {2, 2})
+    );
+
+    expectTensor(
+        "CUDA fused network with replacement input",
+        gpu.execute(ir, bindings),
+        {0, 0, 43, 51},
+        {2, 2}
+    );
+}
+
 int main() {
     try {
         testInputAndBindings();
         testConstant();
         testConsecutiveReLU();
         testUnsupportedOperation();
+        testFusedNetwork();
 
         std::cout << "\nAll CUDA backend tests passed!\n";
         return 0;

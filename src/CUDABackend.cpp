@@ -90,6 +90,32 @@ tensor CUDABackend::execute(
 
             values[outputID] = cudaRelu(values[inputID]);
         }
+
+        else if (instruction.operation == "FusedMatMulAdd") {
+            if (instruction.inputs.size() != 3) {
+                throw std::runtime_error(
+                    "FusedMatMulAdd requires exactly three inputs"
+                );
+            }
+
+            for (int inputID : instruction.inputs) {
+                if (!validID(inputID) || !ready[inputID]) {
+                    throw std::runtime_error(
+                        "FusedMatMulAdd input has not been produced"
+                    );
+                }
+            }
+
+            int aID = instruction.inputs[0];
+            int bID = instruction.inputs[1];
+            int biasID = instruction.inputs[2];
+
+            values[outputID] = cudaFusedMatMulAdd(
+                values[aID],
+                values[bID],
+                values[biasID]
+            );
+        }
         else {
             throw std::runtime_error(
                 "CUDA backend does not support operation: " +
