@@ -11,6 +11,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "cudaKernels.h"
+#include <algorithm>
 
 // Check both shape and numerical values.
 void expectTensor(
@@ -339,6 +341,171 @@ void testFusedNetwork() {
     );
 }
 
+void expectClose(
+    const std::string& name,
+    const tensor& actual,
+    const tensor& expected
+) {
+    if (actual.getShape() != expected.getShape()) {
+        throw std::runtime_error(name + ": shape mismatch");
+    }
+
+    const auto actualData = actual.getData();
+    const auto expectedData = expected.getData();
+
+    if (actualData.size() != expectedData.size()) {
+        throw std::runtime_error(name + ": data size mismatch");
+    }
+
+    const float absoluteTolerance = 1e-5f;
+    const float relativeTolerance = 1e-4f;
+    float maxError = 0.0f;
+
+    for (std::size_t i = 0; i < actualData.size(); ++i) {
+        float actualValue = actualData[i];
+        float expectedValue = expectedData[i];
+
+        if (!std::isfinite(actualValue) ||
+            !std::isfinite(expectedValue)) {
+            throw std::runtime_error(
+                name + ": non-finite value at index " +
+                std::to_string(i)
+            );
+        }
+
+        float error = std::fabs(actualValue - expectedValue);
+        float allowedError =
+            absoluteTolerance +
+            relativeTolerance * std::fabs(expectedValue);
+
+        if (error > allowedError) {
+            throw std::runtime_error(
+                name + ": mismatch at index " +
+                std::to_string(i) +
+                ", expected " + std::to_string(expectedValue) +
+                ", got " + std::to_string(actualValue)
+            );
+        }
+
+        maxError = std::max(maxError, error);
+    }
+
+    std::cout << "PASS: " << name
+              << " (max absolute error: " << maxError << ")\n";
+}
+
+// Produce repeatable mixed-sign fractional data.
+tensor makeTestMatrix(int rows, int columns, int seed) {
+    std::vector<float> data(
+        static_cast<std::size_t>(rows) * columns
+    );
+
+    for (std::size_t i = 0; i < data.size(); ++i) {
+        int value =
+            (static_cast<int>(i % 29) * 7 + seed) % 29 - 14;
+
+        data[i] = static_cast<float>(value) / 10.0f;
+    }
+
+    return tensor(data, {rows, columns});
+}
+void testKnownRectangularProduct() {
+    tensor a(
+        {1, 2, 3,
+         4, 5, 6},
+        {2, 3}
+    );
+
+    tensor b(
+        { 1, -1,
+          2,  0,
+         -1,  3},
+        {3, 2}
+    );
+
+    tensor bias(
+        {1, -2,
+         3, -4},
+        {2, 2}
+    );
+
+    tensor expected(
+        {3, 6,
+         11, 10},
+        {2, 2}
+    );
+
+    expectClose(
+        "known rectangular CPU product",
+        fusedMatMulAdd2d(a, b, bias),
+        expected
+    );
+
+    expectClose(
+        "known rectangular CUDA product",
+        cudaFusedMatMulAdd(a, b, bias),
+        expected
+    );
+}
+
+void testRectangularCase(int rows, int shared, int columns) {
+    tensor a = makeTestMatrix(rows, shared, 1);
+    tensor b = makeTestMatrix(shared, columns, 5);
+    tensor bias = makeTestMatrix(rows, columns, 9);
+
+    tensor expected = fusedMatMulAdd2d(a, b, bias);
+    tensor actual = cudaFusedMatMulAdd(a, b, bias);
+
+    std::string name =
+        "CUDA rectangular " +
+        std::to_string(rows) + "x" +
+        std::to_string(shared) + " times " +
+        std::to_string(shared) + "x" +
+        std::to_string(columns);
+
+    expectClose(name, actual, expected);
+}
+void expectInvalidFusedShape(
+    const std::string& name,
+    const tensor& a,
+    const tensor& b,
+    const tensor& bias
+) {
+    try {
+        cudaFusedMatMulAdd(a, b, bias);
+    }
+    catch (const std::invalid_argument& error) {
+        std::cout << "PASS: " << name
+                  << " (" << error.what() << ")\n";
+        return;
+    }
+
+    throw std::runtime_error(
+        name + ": invalid shapes were accepted"
+    );
+}
+
+void testInvalidFusedShapes() {
+    tensor a = makeTestMatrix(2, 3, 1);
+    tensor b = makeTestMatrix(3, 4, 2);
+    tensor bias = makeTestMatrix(2, 4, 3);
+
+    expectInvalidFusedShape(
+        "reject incompatible matrix dimensions",
+        a,
+        makeTestMatrix(2, 4, 4),
+        bias
+    );
+
+    // Same element count as the correct bias, but wrong shape.
+    expectInvalidFusedShape(
+        "reject incorrect bias shape",
+        a,
+        b,
+        makeTestMatrix(4, 2, 5)
+    );
+}
+
 int main() {
     try {
         testInputAndBindings();
@@ -346,7 +513,10 @@ int main() {
         testConsecutiveReLU();
         testUnsupportedOperation();
         testFusedNetwork();
-
+        testKnownRectangularProduct();
+        testRectangularCase(3, 5, 7);
+        testRectangularCase(17, 19, 23);
+        testInvalidFusedShapes();
         std::cout << "\nAll CUDA backend tests passed!\n";
         return 0;
     }
