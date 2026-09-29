@@ -1,0 +1,39 @@
+=== MatMul + Add + ReLU ===
+
+IR before optimization:
+0: Input shape=[2, 2]
+1: Constant shape=[2, 2]
+2: MatMul [0, 1]
+3: Constant shape=[2, 2]
+4: Add [2, 3]
+5: ReLU [4]
+
+IR after optimization:
+0: Input shape=[2, 2]
+1: Constant shape=[2, 2]
+2: Constant shape=[2, 2]
+3: FusedMatMulAdd [0, 1, 2]
+4: ReLU [3]
+
+Instructions: 6 -> 5
+PASS: unoptimized CPU result
+
+Optimized CPU result:
+Shape: 2 2 Data: 19 23 43 51 PASS: optimized CPU result
+
+CUDA execution disabled in this build.
+
+=== Constant folding ===
+
+IR before constant folding:
+0: Constant shape=[2, 2]
+1: Constant shape=[2, 2]
+2: Add [0, 1]
+
+IR after constant folding:
+0: Constant shape=[2, 2]
+
+Folded result:
+Shape: 2 2 Data: 6 8 10 12 PASS: constant folding
+
+MiniTensor demo completed successfully.

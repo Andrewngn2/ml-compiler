@@ -1,0 +1,21 @@
+Build:
+nvcc -O3 -std=c++17 benchmark_backends.cpp tensor.cpp IR.cpp CPUBackend.cpp CUDABackend.cpp cudaKernels.cu -o benchmark_backends
+
+Workload:
+float32 square matrices; full matrix bias.
+ReLU(A * B + bias).
+Sizes: 128, 256, 512, 1024.
+Input seeds: 101, 202, 303.
+
+Paths:
+CPU unfused: MatMul -> Add -> ReLU.
+CPU fused: FusedMatMulAdd -> ReLU.
+CUDA fused: FusedMatMulAdd -> ReLU.
+
+Measurement:
+3 warmups and 15 measured executions per path per size.
+Execution order rotates between paths.
+CPU steady-clock timing around backend.execute().
+CUDA timing includes allocations, transfers, computation, and synchronization.
+Graph construction and correctness comparisons are excluded.
+Speedup baseline: CPU unfused median latency.

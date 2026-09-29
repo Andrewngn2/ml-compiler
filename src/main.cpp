@@ -1,156 +1,202 @@
 #include "tensor.h"
 #include "node.h"
-#include "optimizer.h"
-#include <iostream>
-#include <chrono>
-#include <tuple>
 #include "graph.h"
+#include "IR.h"
 #include "CPUBackend.h"
 
-tensor createMatrix(int rows, int cols){
-    std::vector<float> data(rows*cols, 1.0f);
-    return tensor(data,{rows,cols});
+#ifdef MINITENSOR_WITH_CUDA
+#include "CUDABackend.h"
+#endif
+
+#include <cmath>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+void checkResult(
+    const std::string& name,
+    const tensor& actual,
+    const std::vector<float>& expected
+) {
+    if (actual.getShape() != std::vector<int>{2, 2}) {
+        throw std::runtime_error(name + ": incorrect shape");
+    }
+
+    const auto data = actual.getData();
+
+    if (data.size() != expected.size()) {
+        throw std::runtime_error(name + ": incorrect data size");
+    }
+
+    for (std::size_t i = 0; i < data.size(); ++i) {
+        if (!std::isfinite(data[i]) ||
+            std::fabs(data[i] - expected[i]) > 1e-5f) {
+            throw std::runtime_error(
+                name + ": incorrect value at index " +
+                std::to_string(i)
+            );
+        }
+    }
+
+    std::cout << "PASS: " << name << '\n';
 }
 
-int main() {
+void demonstrateNetwork() {
+    std::cout << "=== MatMul + Add + ReLU ===\n";
 
-    // ============================================================
-    // TEST 1: MatMul + Add Fusion
-    // ============================================================
-
-    std::cout << "===== TEST 1: MatMul + Add Fusion =====" << std::endl;
-
-    tensor input_tensor(
-        {1, 2,
-         3, 4},
-        {2, 2}
+    node input(
+        "Input",
+        tensor({1, 2, 3, 4}, {2, 2})
     );
 
-    tensor weight_tensor(
-        {6, 7,
-         6, 7},
-        {2, 2}
+    node weight(
+        "Constant",
+        tensor({6, 7, 6, 7}, {2, 2})
     );
 
-    tensor bias_tensor(
-        {1, 2,
-         1, 2},
-        {2, 2}
+    node bias(
+        "Constant",
+        tensor({1, 2, 1, 2}, {2, 2})
     );
 
-    // Create input nodes
-    node input_node("Input", input_tensor);
-    node weight_node("Input", weight_tensor);
-    node bias_node("Input", bias_tensor);
+    node matmul("MatMul");
+    matmul.addInput(&input);
+    matmul.addInput(&weight);
 
-    // MatMul node
-    node matmul_node("MatMul");
-    matmul_node.addInput(&input_node);
-    matmul_node.addInput(&weight_node);
+    node add("Add");
+    add.addInput(&matmul);
+    add.addInput(&bias);
 
-    // Add node
-    node add_node("Add");
-    add_node.addInput(&matmul_node);
-    add_node.addInput(&bias_node);
+    node relu("ReLU");
+    relu.addInput(&add);
 
-    // ReLU node
-    node relu_node("ReLU");
-    relu_node.addInput(&add_node);
-
-    // Create graph
     Graph graph;
+    graph.addNode(&input);
+    graph.addNode(&weight);
+    graph.addNode(&bias);
+    graph.addNode(&matmul);
+    graph.addNode(&add);
+    graph.addNode(&relu);
+    graph.setOutputNode(&relu);
 
-    graph.addNode(&input_node);
-    graph.addNode(&weight_node);
-    graph.addNode(&bias_node);
-    graph.addNode(&matmul_node);
-    graph.addNode(&add_node);
-    graph.addNode(&relu_node);
+    std::cout << "\nIR before optimization:\n";
+    IR originalIR = graph.lowerToIR();
+    originalIR.print();
 
-    graph.setOutputNode(&relu_node);
-
-    std::cout << "\nGraph before optimization:\n";
-    graph.printNodes();
-
-    std::cout << "\nResult before optimization:\n";
-    graph.execute().print();
-
-    // Optimize
     graph.optimize();
 
-    
-    IR ir = graph.lowerToIR();
+    if (add.getOperation() != "FusedMatMulAdd") {
+        throw std::runtime_error("MatMul + Add fusion failed");
+    }
 
-    std::cout << "\nIR:\n";
-    ir.print();
+    IR optimizedIR = graph.lowerToIR();
+
+    std::cout << "\nIR after optimization:\n";
+    optimizedIR.print();
+
+    std::cout << "\nInstructions: "
+              << originalIR.getInstructions().size()
+              << " -> "
+              << optimizedIR.getInstructions().size()
+              << '\n';
 
     CPUBackend cpu;
 
-    tensor result = cpu.execute(ir);
-
-    std::cout << "\nCPU Backend result:\n";
-    result.print();
-
-    std::cout << "\nGraph after optimization:\n";
-    graph.printNodes();
-
-    std::cout << "\nResult after optimization:\n";
-    graph.execute().print();
-
-
-    // ============================================================
-    // TEST 2: Constant Folding
-    // ============================================================
-
-    std::cout << "\n\n===== TEST 2: Constant Folding =====" << std::endl;
-
-    tensor constant_a(
-        {1, 2,
-         3, 4},
-        {2, 2}
+    checkResult(
+        "unoptimized CPU result",
+        cpu.execute(originalIR),
+        {19, 23, 43, 51}
     );
 
-    tensor constant_b(
-        {5, 6,
-         7, 8},
-        {2, 2}
+    tensor cpuResult = cpu.execute(optimizedIR);
+
+    std::cout << "\nOptimized CPU result:\n";
+    cpuResult.print();
+
+    checkResult(
+        "optimized CPU result",
+        cpuResult,
+        {19, 23, 43, 51}
     );
 
-    // Constant nodes
-    node constant_node_a("Constant", constant_a);
-    node constant_node_b("Constant", constant_b);
+#ifdef MINITENSOR_WITH_CUDA
+    CUDABackend gpu;
+    tensor gpuResult = gpu.execute(optimizedIR);
 
-    // Add node
-    node constant_add("Add");
-    constant_add.addInput(&constant_node_a);
-    constant_add.addInput(&constant_node_b);
+    std::cout << "\nCUDA result from the same optimized IR:\n";
+    gpuResult.print();
 
-    // Graph
-    Graph constant_graph;
-
-    constant_graph.addNode(&constant_node_a);
-    constant_graph.addNode(&constant_node_b);
-    constant_graph.addNode(&constant_add);
-
-    constant_graph.setOutputNode(&constant_add);
-
-    std::cout << "\nGraph before optimization:\n";
-    constant_graph.printNodes();
-
-    std::cout << "\nResult before optimization:\n";
-    constant_graph.execute().print();
-
-    // Optimize
-    constant_graph.optimize();
-
-    std::cout << "\nGraph after optimization:\n";
-    constant_graph.printNodes();
-
-    std::cout << "\nResult after optimization:\n";
-    constant_graph.execute().print();
-
-
-
-    return 0;
+    checkResult(
+        "CUDA result",
+        gpuResult,
+        {19, 23, 43, 51}
+    );
+#else
+    std::cout << "\nCUDA execution disabled in this build.\n";
+#endif
 }
 
+void demonstrateConstantFolding() {
+    std::cout << "\n=== Constant folding ===\n";
+
+    node left(
+        "Constant",
+        tensor({1, 2, 3, 4}, {2, 2})
+    );
+
+    node right(
+        "Constant",
+        tensor({5, 6, 7, 8}, {2, 2})
+    );
+
+    node add("Add");
+    add.addInput(&left);
+    add.addInput(&right);
+
+    Graph graph;
+    graph.addNode(&left);
+    graph.addNode(&right);
+    graph.addNode(&add);
+    graph.setOutputNode(&add);
+
+    std::cout << "\nIR before constant folding:\n";
+    graph.lowerToIR().print();
+
+    graph.optimize();
+    IR ir = graph.lowerToIR();
+
+    if (add.getOperation() != "Constant" ||
+        ir.getInstructions().size() != 1) {
+        throw std::runtime_error("Constant folding failed");
+    }
+
+    std::cout << "\nIR after constant folding:\n";
+    ir.print();
+
+    CPUBackend cpu;
+    tensor result = cpu.execute(ir);
+
+    std::cout << "\nFolded result:\n";
+    result.print();
+
+    checkResult(
+        "constant folding",
+        result,
+        {6, 8, 10, 12}
+    );
+}
+
+int main() {
+    try {
+        demonstrateNetwork();
+        demonstrateConstantFolding();
+
+        std::cout << "\nMiniTensor demo completed successfully.\n";
+        return 0;
+    }
+    catch (const std::exception& error) {
+        std::cerr << "FAIL: " << error.what() << '\n';
+        return 1;
+    }
+}

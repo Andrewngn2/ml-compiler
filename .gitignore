@@ -1,0 +1,23 @@
+# CMake build folders
+/build/
+/build-cuda/
+
+# Executables from manual builds
+/src/test_cpu_backend
+/src/test_cuda_backend
+/src/test_cuda_relu
+/src/benchmark_backends
+/src/mini_graph
+/src/mini_tensor
+/src/optim_pass
+
+# Compiled files
+*.o
+*.a
+*.so
+*.dylib
+
+# macOS metadata
+.DS_Store
+
+/.vscode/
