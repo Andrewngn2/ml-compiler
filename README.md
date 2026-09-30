@@ -211,9 +211,3 @@ See `benchmarks/README.md` for the original recorded build command.
 - Graph nodes use non-owning pointers; callers must maintain their lifetime.
 - No ONNX/PyTorch importer or automatic differentiation.
 
-## Future work
-
-- Keep intermediate tensors resident on the GPU.
-- Reuse device allocations across executions.
-- Explore tiled matrix multiplication and profile bottlenecks.
-- Extend supported operations and model import.
